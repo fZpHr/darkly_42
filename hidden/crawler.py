@@ -47,5 +47,5 @@ def crawl(start_url):
     print(f"\nTotal paths: {path_count}")
     print(f"Total READMEs > 34 bytes: {readme_count}")
 
-base_url = "http://10.11.249.4/.hidden/"
+base_url = "http://10.11.249.0/.hidden/"
 crawl(base_url)
