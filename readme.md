@@ -161,3 +161,231 @@ Cette technique consiste à accéder à des répertoires ou fichiers non autoris
 3. Contrôler les permissions d'accès aux fichiers et répertoires 
 4. Utiliser un pare-feu d'application web (WAF) 
 5. Ne pas exposer de messages d'erreur détaillé
+
+## 8) Flag "edit_request_survey"
+### Etapes pour trouver le flag
+1. Accès à la page "?page=survey" qui présente un classement avec des votes de 1 à 10
+2. Observation des paramètres de requête : sujet=2&valeur=X où X représente la valeur du vote
+3. Modification de la valeur dans la requête pour dépasser la limite de 10 (par exemple : sujet=2&valeur=54)
+4. Le serveur accepte la modification sans valider la plage de valeurs autorisée
+
+### Description
+Cette vulnérabilité résulte d'un manque de validation côté serveur des données envoyées par l'utilisateur. Le serveur fait confiance aux données reçues sans vérifier si elles respectent les règles métier définies (ici, la plage de valeurs 1-10 pour les votes).
+
+### OWASP associés
+1. OWASP A04:2021 - Insecure Design
+2. OWASP A03:2021 - Injection
+3. OWASP A05:2021 - Security Misconfiguration
+
+### Comment s'en protéger
+1. Implémenter une validation stricte des données côté serveur
+2. Définir des limites claires pour les valeurs acceptables
+3. Ne jamais faire confiance aux données envoyées par le client
+4. Mettre en place des contrôles de validation dans la base de données (contraintes)
+5. Journaliser les tentatives de manipulation des requêtes
+6. Utiliser des listes blanches pour les valeurs autorisées
+
+
+## 9) Flag "edit_request_upload"
+### Etapes pour trouver le flag
+1. Accès à la page d'upload qui n'accepte que les fichiers JPEG
+2. Interception de la requête
+3. Modification du Content-Type dans l'en-tête de la requête :
+```http
+Content-Type: image/jpeg
+```
+4. Possibilité d'uploader des fichiers malveillants (scripts PHP, shells, etc.) en contournant la restriction JPEG
+
+### Description
+Cette vulnérabilité exploite une validation insuffisante du type de fichier côté serveur. Le serveur se fie uniquement au Content-Type de la requête HTTP sans vérifier le contenu réel du fichier. Un attaquant peut ainsi télécharger des fichiers potentiellement dangereux (shells web, scripts malveillants, etc.) en faisant passer ces fichiers pour des images JPEG.
+
+### OWASP associés
+1. OWASP A01:2021 - Broken Access Control
+2. OWASP A05:2021 - Security Misconfiguration
+3. OWASP A03:2021 - Injection
+
+### Comment s'en protéger
+1. Vérifier le contenu réel du fichier (magic bytes) et pas seulement le Content-Type
+2. Implémenter une double validation côté client ET serveur
+3. Utiliser des bibliothèques dédiées pour la validation des fichiers
+4. Renommer les fichiers uploadés de manière aléatoire
+5. Stocker les fichiers en dehors de la racine web
+6. Scanner les fichiers uploadés avec un antivirus
+7. Limiter la taille maximale des fichiers
+8. Restreindre les extensions de fichiers autorisées via une liste blanche
+
+
+Cette faille peut mener à une compromission complète du serveur si elle est exploitée avec succès.
+
+## 10) Flag "redirect_social_network"
+### Etapes pour trouver le flag
+1. Observation des liens de réseaux sociaux en bas de page du site
+2. Ces liens utilisent une URL de redirection du type :
+```
+http://10.11.249.0/index.php?page=redirect&site=
+```
+3. En cliquant sur un réseau social (Facebook, Twitter, etc.), on peut voir que le site redirige sans validation
+4. L'URL peut être modifiée pour rediriger vers n'importe quel site :
+```
+http://10.11.249.0/index.php?page=redirect&site=https://malicious-site.com
+```
+
+### Description
+Cette vulnérabilité exploite les liens de réseaux sociaux du site qui utilisent un système de redirection non sécurisé. Au lieu de rediriger uniquement vers les réseaux sociaux légitimes, le système accepte n'importe quelle URL de destination, permettant potentiellement des redirections vers des sites malveillants.
+
+### OWASP associés
+1. OWASP A01:2021 - Broken Access Control
+2. OWASP A04:2021 - Insecure Design
+
+### Comment s'en protéger
+1. Hardcoder les URLs des réseaux sociaux plutôt que d'utiliser un système de redirection
+2. Si un système de redirection est nécessaire :
+   - Utiliser une liste blanche des domaines de réseaux sociaux autorisés
+   - Valider strictement l'URL de destination
+3. Implémenter des contrôles de sécurité sur les redirections
+4. Utiliser des liens directs vers les réseaux sociaux plutôt qu'un système de redirection intermédiaire
+
+Cette faille est particulièrement problématique car les utilisateurs s'attendent à être redirigés vers des réseaux sociaux légitimes, augmentant leur confiance dans le lien et les rendant plus vulnérables aux attaques de phishing.
+
+## 11) Flag "xss_data_url"
+### Etapes pour trouver le flag
+1. Accès à la page média avec le paramètre src : 
+```
+http://10.11.249.0/?page=media&src=nsa
+```
+2. Utilisation du protocole data: pour injecter du code JavaScript encodé en base64 :
+https://owasp.org/www-community/attacks/xss/
+```
+http://10.11.249.0/?page=media&src=data:text/html;base64,PHNjcmlwdD5hbGVydCgndGVzdDMnKTwvc2NyaXB0Pg
+```
+3. Le code décodé correspond à :
+```javascript
+<script>alert('test3')</script>
+```
+
+### Description
+Cette vulnérabilité exploite le protocole data: URL qui permet d'inclure des données directement dans l'URL. L'utilisation de l'encodage base64 est cruciale ici car elle permet de contourner le filtrage des caractères spéciaux. Sans encodage base64, les caractères comme `<`, `>`, `/` présents dans le code JavaScript seraient échappés ou filtrés par le navigateur, rendant l'attaque inefficace. Le base64 transforme notre payload en caractères alphanumériques sûrs qui seront correctement transmis, puis décodés et exécutés par le navigateur.
+
+Par exemple :
+1. Sans base64 (ne fonctionne pas) :
+```
+data:text/html,<script>alert('test')</script>
+```
+
+2. Avec base64 (fonctionne) :
+```
+data:text/html;base64,PHNjcmlwdD5hbGVydCgndGVzdDMnKTwvc2NyaXB0Pg
+```
+
+Le serveur ne valide pas correctement la source des médias et ne bloque pas l'utilisation du protocole data:, permettant ainsi l'injection et l'exécution de code JavaScript arbitraire.
+
+
+### OWASP associés
+1. OWASP A03:2021 - Injection
+2. OWASP A05:2021 - Security Misconfiguration
+
+### Comment s'en protéger
+1. Valider strictement les sources de médias autorisées
+2. Bloquer l'utilisation du protocole data:
+3. Implémenter une Content Security Policy (CSP) stricte
+4. Échapper correctement les données non fiables
+5. Filtrer les URLs entrantes pour n'autoriser que les protocoles et sources légitimes
+6. Utiliser des listes blanches pour les sources de médias autorisées
+
+Cette vulnérabilité est particulièrement dangereuse car elle permet l'exécution de code JavaScript arbitraire dans le contexte de la page, pouvant mener à du vol de données, des redirections malveillantes, ou d'autres actions non autorisées.
+
+## 12) Flag "referer_user_agent"
+### Etapes pour trouver le flag
+1. En inspectant le code source, on trouve des commentaires HTML cachés qui indiquent :
+```html
+<!--
+You must come from : "https://www.nsa.gov/".
+-->
+```
+et plus loin :
+```html
+<!--
+	Let's use this browser : "ft_bornToSec". It will help you a lot.
+-->
+```
+
+2. Pour obtenir le flag, il faut modifier :
+- L'en-tête `Referer` pour faire croire qu'on vient de "https://www.nsa.gov/"
+- L'en-tête `User-Agent` pour simuler le navigateur "ft_bornToSec"
+
+### Description
+Cette vulnérabilité repose sur une validation côté serveur basée uniquement sur les en-têtes HTTP qui sont facilement modifiables. Le serveur utilise les en-têtes `Referer` et `User-Agent` pour contrôler l'accès, ce qui est une mauvaise pratique car ces en-têtes peuvent être falsifiés.
+
+### OWASP associés
+1. OWASP A04:2021 - Insecure Design
+2. OWASP A07:2021 - Identification and Authentication Failures
+3. OWASP A05:2021 - Security Misconfiguration
+
+### Comment s'en protéger
+1. Ne jamais faire confiance aux en-têtes HTTP pour l'authentification ou le contrôle d'accès
+2. Implémenter une authentification robuste basée sur des tokens ou des sessions
+3. Ne pas stocker d'informations sensibles dans les commentaires HTML
+4. Utiliser des mécanismes de sécurité côté serveur plutôt que de se fier aux informations envoyées par le client
+5. Mettre en place une vérification d'origine plus sûre si nécessaire (ex: CORS bien configuré)
+6. Implémenter une authentification forte basée sur des cookies de session sécurisés
+
+Les en-têtes HTTP comme `Referer` et `User-Agent` sont facilement modifiables avec des outils comme curl, Burp Suite ou même des extensions de navigateur, ce qui rend ce type de protection inefficace.
+
+## 13) Flag "robots_whatever_admin"
+### Etapes pour trouver le flag
+1. Découverte du fichier `robots.txt` à la racine du site :
+```
+http://10.11.249.0/robots.txt
+```
+
+2. Le fichier `robots.txt` révèle le dossier `/whatever`
+
+3. Dans ce dossier, découverte du fichier `.htpasswd` :
+```
+http://10.11.249.4/whatever/htpasswd
+```
+qui contient des identifiants :
+```
+root:437394baff5aa33daa618be47b75cb49
+```
+
+4. Décryptage du hash MD5 via un service en ligne (md5decrypt.net) :
+- Hash MD5 : 437394baff5aa33daa618be47b75cb49
+- Texte en clair : qwerty123@
+
+5. Utilisation des identifiants sur la page admin :
+```
+http://10.11.249.4/admin/
+login: root
+password: qwerty123@
+```
+
+### Description
+Cette vulnérabilité combine plusieurs problèmes de sécurité :
+- Exposition du fichier robots.txt révélant des chemins sensibles
+- Accès public au fichier .htpasswd contenant des hashes de mots de passe
+- Utilisation de MD5, un algorithme de hashage faible et facilement décryptable
+- Mot de passe relativement simple malgré l'utilisation de caractères spéciaux
+
+### OWASP associés
+1. OWASP A01:2021 - Broken Access Control
+2. OWASP A07:2021 - Identification and Authentication Failures
+3. OWASP A05:2021 - Security Misconfiguration
+
+### Comment s'en protéger
+1. Ne pas exposer de fichiers sensibles comme .htpasswd
+2. Utiliser des algorithmes de hashage forts (bcrypt, Argon2) au lieu de MD5
+3. Stocker les fichiers d'authentification hors de la racine web
+4. Configurer correctement les permissions des fichiers
+5. Utiliser des mots de passe forts et complexes
+6. Ne pas révéler de chemins sensibles dans robots.txt
+7. Mettre en place une authentification à deux facteurs pour l'accès admin
+8. Restreindre l'accès à l'interface d'administration par IP ou VPN
+
+## 14) Flag "feedback"
+### Etapes pour trouver le flag
+http://10.11.249.0/?page=feedback
+```
+l e s i c t r p a
+```
+???
